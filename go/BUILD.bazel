@@ -1,0 +1,29 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+go_library(
+    name = "go_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/psalaberria002/rules_go_cgo_rebuilds/go",
+    visibility = ["//visibility:private"],
+    deps = ["@io_opentelemetry_go_otel//:otel"],
+)
+
+go_binary(
+    name = "go",
+    embed = [":go_lib"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "tar",
+    srcs = [":go"],
+)
+
+oci_image(
+    name = "image",
+    base = "@distroless_base",
+    entrypoint = ["/go"],
+    tars = [":tar"],
+)

@@ -1,0 +1,126 @@
+"""Bazel MODULE definition for the rules_go_cgo_rebuilds repository."""
+
+module(
+    name = "rules_go_cgo_rebuilds",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "aspect_bazel_lib", version = "2.7.7")
+
+bazel_dep(name = "bazel_features", version = "1.12.0")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+
+bazel_dep(name = "gazelle", version = "0.37.0", repo_name = "bazel_gazelle")
+
+bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "protobuf", version = "23.1", repo_name = "com_google_protobuf")
+
+#bazel_dep(name = "rules_cc", version = "0.0.9")
+#bazel_dep(name = "rules_foreign_cc", version = "0.10.1")
+
+#bazel_dep(name = "rules_distroless", version = "0.3.3")
+bazel_dep(name = "rules_oci", version = "1.7.6")
+bazel_dep(name = "rules_pkg", version = "0.10.1")
+
+bazel_dep(name = "rules_go", version = "0.48.0", repo_name = "io_bazel_rules_go")
+
+bazel_dep(name = "rules_python", version = "0.33.0")
+bazel_dep(name = "rules_python_gazelle_plugin", version = "0.33.0")
+
+bazel_dep(name = "toolchains_llvm", version = "1.0.0")
+
+#### Go ####
+GO_VERSION = "1.22.4"
+
+go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
+go_sdk.download(
+    goarch = "amd64",
+    goos = "linux",
+    version = GO_VERSION,
+)
+go_sdk.download(
+    goarch = "arm64",
+    goos = "darwin",
+    version = GO_VERSION,
+)
+use_repo(
+    go_sdk,
+    "go_default_sdk",
+)
+
+go_deps = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps")
+go_deps.from_file(go_mod = "@rules_go_cgo_rebuilds//:go.mod")
+
+use_repo(
+    go_deps,
+    "io_opentelemetry_go_otel",
+)
+
+#### Python ####
+PYTHON_VERSION = "3.11"
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    configure_coverage_tool = True,
+    is_default = True,
+    python_version = PYTHON_VERSION,
+)
+
+#### LLVM ####
+
+sysroot = use_extension("//:sysroot.bzl", "sysroot")
+use_repo(
+    sysroot,
+    "org_chromium_sysroot_linux_amd64",
+    "org_chromium_sysroot_linux_arm64",
+)
+
+# Use e.g. `bazel query --consistent_labels @org_chromium_sysroot_linux_arm64//...`
+# to find the labels to use for the sysroot dictionary
+# https://github.com/grailbio/bazel-toolchain/issues/234
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm")
+llvm.toolchain(
+    name = "llvm_toolchain",
+    llvm_versions = {
+        "linux-x86_64": "15.0.6",
+        "linux-aarch64": "15.0.6",
+        "darwin-x86_64": "15.0.4",
+        "darwin-aarch64": "15.0.4",
+    },
+    stdlib = {
+        "linux-x86_64": "stdc++",
+    },
+)
+llvm.sysroot(
+    name = "llvm_toolchain",
+    label = "@@_main~sysroot~org_chromium_sysroot_linux_amd64//:sysroot",
+    targets = ["linux-x86_64"],
+)
+llvm.sysroot(
+    name = "llvm_toolchain",
+    label = "@@_main~sysroot~org_chromium_sysroot_linux_arm64//:sysroot",
+    targets = ["linux-aarch64"],
+)
+use_repo(
+    llvm,
+    "llvm_toolchain",
+    "llvm_toolchain_llvm",
+)
+
+register_toolchains(
+    "@llvm_toolchain//:all",
+)
+
+oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
+
+oci.pull(
+    name = "distroless_base",
+    digest = "sha256:ccaef5ee2f1850270d453fdf700a5392534f8d1a8ca2acda391fbb6a06b81c86",
+    image = "gcr.io/distroless/base",
+    platforms = [
+        "linux/amd64",
+        "linux/arm64",
+    ],
+)
+
+use_repo(oci, "distroless_base")

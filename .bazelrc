@@ -1,0 +1,78 @@
+common --enable_bzlmod
+
+# The --jobs flag is broken in Bazel 7.0.0, as changes with JVM 21 allow the number of
+# jobs to be larger than the value passed to --jobs in some situations. This flag
+# remedies that situation, and will be enabled by default starting with 7.1.0
+common --experimental_use_semaphore_for_jobs
+
+# This causes Bazel to run validation actions using an aspect. Using an aspect has the
+# effect that we don't wait for validation actions to finish before running tests
+common --experimental_use_validation_aspect
+
+# `--incompatible_sandbox_hermetic_tmp` currently breaks multi-arch images using rules_oci
+common --noincompatible_sandbox_hermetic_tmp
+
+# By default, Bazel does not track empty source directories. This causes a lot of
+# warnings stating that "dependency checking of directories is unsound".
+# There is experimental support for this type of tracking, enabled by setting this flag.
+# Some rules we use, such as `copy_file` recommend this setting:
+# https://github.com/aspect-build/bazel-lib/blob/v2.0.0/docs/copy_file.md
+# Docs: https://bazel.build/reference/command-line-reference#flag--host_jvm_args
+#       https://bazel.build/contribute/codebase#artifacts
+startup --host_jvm_args=-DBAZEL_TRACK_SOURCE_DIRECTORIES=1
+
+# Show us information about failures.
+common --verbose_failures
+common --test_output=errors
+common --test_summary=terse
+
+# Quicker builds (recommendations from https://docs.aspect.build/guides/bazelrc/)
+common --noexperimental_check_output_files --noexperimental_check_external_repository_files # https://groups.google.com/g/bazel-discuss/c/E_0F1t4FITE
+common --incompatible_strict_action_env # don't let environment variables like $PATH sneak into the build, which can cause massive cache misses when they change.
+common --experimental_output_directory_naming_scheme=diff_against_baseline # Will become a default flag in bazel 6.1.0, merges outputs folder of matching configs, and prevents some rebuilds in rules_go
+
+# Retry build on remote cache eviction errors
+common --experimental_remote_cache_eviction_retries=5
+
+# Trivy scanning
+build:trivy --aspects //build/aspects:oci.bzl%trivy
+build:trivy --output_groups=trivy_report
+build:trivy --remote_download_regex=".*trivy_report.*"
+
+# This allows Bazel to pick up host-OS-specific config lines. For example, if the host OS is Linux and you run bazel build,
+# Bazel picks up lines starting with build:linux. Supported OS identifiers are linux, macos, windows, freebsd, and openbsd.
+# Enabling this flag is equivalent to using --config=linux on Linux, --config=windows on Windows, etc.
+common --enable_platform_specific_config
+
+# Our hermetic CC toolchain causes problems for some runnable targets, including
+# gazelle and bake_manifests, when not using remote execution.
+# By disabling it here, and explicitly enabling it for remote execution further
+# down, we seem to hit a good compromise.
+common --noincompatible_enable_cc_toolchain_resolution
+
+# Remote Execution
+common:remote-shared --remote_upload_local_results=false
+
+common:remote-shared --nobuild_runfile_links
+# Use long form to permit override from the command line
+common:remote-shared --remote_download_outputs=minimal
+
+common:remote-shared --reuse_sandbox_directories
+common:remote-shared --experimental_remote_cache_async
+common:remote-shared --experimental_remote_merkle_tree_cache
+common:remote-shared --incompatible_allow_tags_propagation
+
+# Platform flags:
+# The toolchain container used for execution is defined in the target indicated
+# by "extra_execution_platforms", "host_platform" and "platforms".
+# More about platforms: https://docs.bazel.build/versions/master/platforms.html
+common:remote-shared --extra_execution_platforms=//:linux_amd64
+common:remote-shared --host_platform=//:linux_amd64
+common:remote-shared --platforms=//:linux_amd64
+common:remote-shared --incompatible_enable_cc_toolchain_resolution
+common:remote-shared --experimental_platform_in_output_dir
+common:remote-shared --repo_env BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+
+# Remote Execution (prod)
+common:remote --config=remote-shared
+
