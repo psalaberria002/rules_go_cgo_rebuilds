@@ -58,7 +58,7 @@ common:remote-shared --nobuild_runfile_links
 common:remote-shared --remote_download_outputs=minimal
 
 common:remote-shared --reuse_sandbox_directories
-common:remote-shared --experimental_remote_cache_async
+common:remote-shared --remote_cache_async
 common:remote-shared --experimental_remote_merkle_tree_cache
 common:remote-shared --incompatible_allow_tags_propagation
 
@@ -72,6 +72,8 @@ common:remote-shared --platforms=//:linux_amd64
 common:remote-shared --incompatible_enable_cc_toolchain_resolution
 common:remote-shared --experimental_platform_in_output_dir
 common:remote-shared --repo_env BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+
+common --noincompatible_disallow_empty_glob
 
 # Remote Execution (prod)
 common:remote --config=remote-shared

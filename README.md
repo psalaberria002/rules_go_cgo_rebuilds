@@ -8,6 +8,6 @@ There should only be one.
 ```
 bazel build //... --config=remote
 
-bazel aquery @@gazelle~~go_deps~io_opentelemetry_go_otel//:otel --config=remote
+bazel aquery @@gazelle++go_deps+io_opentelemetry_go_otel//:otel --config=remote
 
 ```
